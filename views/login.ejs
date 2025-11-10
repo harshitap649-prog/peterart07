@@ -10,11 +10,26 @@
 <script>
 // Prevent Firebase errors from blocking page interaction
 window.addEventListener('error', function(e) {
-  if (e.message && e.message.includes('firebase')) {
+  if (e.message && (e.message.includes('firebase') || e.message.includes('require') || e.message.includes('exports'))) {
     console.warn('Firebase error (non-blocking):', e.message);
     e.preventDefault();
   }
 }, true);
+
+// Fallback for signInWithGoogle if Firebase fails to load
+if (typeof window.signInWithGoogle === 'undefined') {
+  window.signInWithGoogle = function() {
+    alert('Google Sign-In is not available. Please use email/password login or check your browser console for errors.');
+    console.error('signInWithGoogle function not loaded. Check if firebase-init.js loaded correctly.');
+  };
+  
+  // Try to load it after a delay
+  setTimeout(function() {
+    if (typeof window.signInWithGoogle === 'undefined') {
+      console.warn('Firebase initialization may have failed. Google Sign-In will not work.');
+    }
+  }, 1000);
+}
 </script>
 </head>
 <body class="login-page">

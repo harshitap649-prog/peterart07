@@ -506,9 +506,24 @@ app.post('/login', (req, res) => {
   }
   
   // Special handling for admin login on Vercel (when database is not available)
-  if (isVercel && !sqlite3 && email.trim() === ADMIN_EMAIL && password === ADMIN_PASS) {
-    req.session.user = { id: 1, email: ADMIN_EMAIL, name: 'Admin' };
-    return res.redirect('/admin');
+  // Also works if environment variables aren't set (uses defaults)
+  const adminEmail = ADMIN_EMAIL || 'harshitap649@gmail.com';
+  const adminPass = ADMIN_PASS || 'adminpass';
+  
+  console.log('Login attempt:', { email: email.trim(), isVercel, hasSqlite3: !!sqlite3, adminEmail });
+  
+  // If database not available, allow admin login with hardcoded credentials
+  if (!sqlite3 || (isVercel && !sqlite3)) {
+    if (email.trim().toLowerCase() === adminEmail.toLowerCase() && password === adminPass) {
+      req.session.user = { id: 1, email: adminEmail, name: 'Admin' };
+      console.log('Admin login successful (no database)');
+      return res.redirect('/admin');
+    } else {
+      console.log('Admin login failed:', { 
+        emailMatch: email.trim().toLowerCase() === adminEmail.toLowerCase(),
+        passwordMatch: password === adminPass 
+      });
+    }
   }
   
   db.get('SELECT * FROM users WHERE email = ?', [email.trim()], (err, user) => {
