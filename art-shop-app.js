@@ -35,26 +35,92 @@ const multer = require('multer');
 const sqlite3 = require('sqlite3').verbose();
 const session = require('express-session');
 const bodyParser = require('body-parser');
+const admin = require('firebase-admin');
 
 const ADMIN_EMAIL = 'harshitap649@gmail.com'; // Admin email
 const ADMIN_PASS = process.env.ADMIN_PASS || 'adminpass';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'keyboard cat';
 const PORT = process.env.PORT || 3000;
 
-// Ensure uploads dir
+// Firebase Admin initialization
+let firebaseStorage = null;
+try {
+  // Initialize Firebase Admin if credentials are provided
+  if (process.env.FIREBASE_PROJECT_ID || process.env.FIREBASE_SERVICE_ACCOUNT) {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      // Use service account JSON from environment variable
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'peterart07-e9c21.firebasestorage.app'
+      });
+    } else {
+      // Use default credentials (for local development with gcloud)
+      admin.initializeApp({
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'peterart07-e9c21.firebasestorage.app'
+      });
+    }
+    firebaseStorage = admin.storage();
+    console.log('Firebase Storage initialized successfully');
+  } else {
+    console.log('Firebase Storage not configured - using local storage');
+  }
+} catch (error) {
+  console.warn('Firebase Admin initialization failed:', error.message);
+  console.log('Falling back to local file storage');
+}
+
+// Ensure uploads dir (for fallback/local development)
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
 
-// Multer setup for image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, unique + ext);
+// Multer setup - use memory storage for Firebase uploads
+const memoryStorage = multer.memoryStorage();
+const upload = multer({ storage: memoryStorage, limits: { fileSize: 5 * 1024 * 1024 } });
+
+// Function to upload file to Firebase Storage
+async function uploadToFirebaseStorage(file, folder = 'artworks') {
+  if (!firebaseStorage) {
+    throw new Error('Firebase Storage not initialized');
   }
-});
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+  
+  const bucket = firebaseStorage.bucket();
+  const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+  const ext = path.extname(file.originalname);
+  const fileName = `${folder}/${unique}${ext}`;
+  const fileRef = bucket.file(fileName);
+  
+  // Upload file buffer
+  await fileRef.save(file.buffer, {
+    metadata: {
+      contentType: file.mimetype,
+      cacheControl: 'public, max-age=31536000'
+    }
+  });
+  
+  // Make file publicly accessible
+  await fileRef.makePublic();
+  
+  // Get public URL
+  const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+  return publicUrl;
+}
+
+// Function to delete file from Firebase Storage
+async function deleteFromFirebaseStorage(imageUrl) {
+  if (!firebaseStorage || !imageUrl) return;
+  
+  try {
+    // Extract file path from URL
+    const urlParts = imageUrl.split('/');
+    const fileName = urlParts.slice(-2).join('/'); // Get 'artworks/filename.jpg'
+    const bucket = firebaseStorage.bucket();
+    const fileRef = bucket.file(fileName);
+    await fileRef.delete();
+  } catch (error) {
+    console.warn('Error deleting from Firebase Storage:', error.message);
+  }
+}
 
 const app = express();
 app.set('view engine', 'ejs');
@@ -723,17 +789,36 @@ app.get('/admin/users', requireAdmin, (req, res) => {
   });
 });
 
-app.post('/admin/new-art', requireAdmin, upload.single('image'), (req, res) => {
+app.post('/admin/new-art', requireAdmin, upload.single('image'), async (req, res) => {
   const { title, description, price } = req.body;
   if (!req.file) return res.render('admin-new-art', { error: 'Image is required' });
   if (!title || !price) return res.render('admin-new-art', { error: 'Title and price are required' });
 
-  const image_path = '/uploads/' + path.basename(req.file.path);
-  const stmt = db.prepare('INSERT INTO artworks (title, description, price, image_path) VALUES (?,?,?,?)');
-  stmt.run([title.trim(), description ? description.trim() : '', parseFloat(price), image_path], function (err) {
-    if (err) return res.status(500).send('DB error inserting artwork');
-    res.redirect('/admin');
-  });
+  try {
+    let image_path;
+    
+    // Upload to Firebase Storage if available, otherwise use local storage
+    if (firebaseStorage) {
+      image_path = await uploadToFirebaseStorage(req.file, 'artworks');
+    } else {
+      // Fallback to local storage
+      const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const ext = path.extname(req.file.originalname);
+      const fileName = unique + ext;
+      const filePath = path.join(UPLOAD_DIR, fileName);
+      fs.writeFileSync(filePath, req.file.buffer);
+      image_path = '/uploads/' + fileName;
+    }
+    
+    const stmt = db.prepare('INSERT INTO artworks (title, description, price, image_path) VALUES (?,?,?,?)');
+    stmt.run([title.trim(), description ? description.trim() : '', parseFloat(price), image_path], function (err) {
+      if (err) return res.status(500).send('DB error inserting artwork');
+      res.redirect('/admin');
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    return res.render('admin-new-art', { error: 'Failed to upload image: ' + error.message });
+  }
 });
 
 // Update order status
@@ -757,7 +842,7 @@ app.get('/admin/art/:id/edit', requireAdmin, (req, res) => {
 });
 
 // Edit artwork - POST
-app.post('/admin/art/:id/edit', requireAdmin, upload.single('image'), (req, res) => {
+app.post('/admin/art/:id/edit', requireAdmin, upload.single('image'), async (req, res) => {
   const id = req.params.id;
   const { title, description, price } = req.body;
   
@@ -771,20 +856,50 @@ app.post('/admin/art/:id/edit', requireAdmin, upload.single('image'), (req, res)
 
   // If new image uploaded, update image_path and delete old image
   if (req.file) {
-    db.get('SELECT image_path FROM artworks WHERE id = ?', [id], (err, row) => {
-      if (err) return res.status(500).send('DB error');
-      if (row && row.image_path) {
-        const oldImgPath = path.join(__dirname, row.image_path);
-        fs.unlink(oldImgPath, () => {}); // ignore unlink errors
-      }
-      const image_path = '/uploads/' + path.basename(req.file.path);
-      db.run('UPDATE artworks SET title = ?, description = ?, price = ?, image_path = ? WHERE id = ?',
-        [title.trim(), description ? description.trim() : '', parseFloat(price), image_path, id],
-        function (err2) {
-          if (err2) return res.status(500).send('DB error updating artwork');
-          res.redirect('/admin/artworks');
-        });
-    });
+    try {
+      db.get('SELECT image_path FROM artworks WHERE id = ?', [id], async (err, row) => {
+        if (err) return res.status(500).send('DB error');
+        
+        // Delete old image
+        if (row && row.image_path) {
+          if (row.image_path.startsWith('https://')) {
+            // Firebase Storage URL - delete from Firebase
+            await deleteFromFirebaseStorage(row.image_path);
+          } else {
+            // Local file - delete from local storage
+            const oldImgPath = path.join(__dirname, row.image_path);
+            fs.unlink(oldImgPath, () => {}); // ignore unlink errors
+          }
+        }
+        
+        // Upload new image
+        let image_path;
+        if (firebaseStorage) {
+          image_path = await uploadToFirebaseStorage(req.file, 'artworks');
+        } else {
+          // Fallback to local storage
+          const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = path.extname(req.file.originalname);
+          const fileName = unique + ext;
+          const filePath = path.join(UPLOAD_DIR, fileName);
+          fs.writeFileSync(filePath, req.file.buffer);
+          image_path = '/uploads/' + fileName;
+        }
+        
+        db.run('UPDATE artworks SET title = ?, description = ?, price = ?, image_path = ? WHERE id = ?',
+          [title.trim(), description ? description.trim() : '', parseFloat(price), image_path, id],
+          function (err2) {
+            if (err2) return res.status(500).send('DB error updating artwork');
+            res.redirect('/admin/artworks');
+          });
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      db.get('SELECT * FROM artworks WHERE id = ?', [id], (err, artwork) => {
+        if (err) return res.status(500).send('DB error');
+        return res.render('admin-edit-art', { artwork, error: 'Failed to upload image: ' + error.message });
+      });
+    }
   } else {
     // No new image, just update other fields
     db.run('UPDATE artworks SET title = ?, description = ?, price = ? WHERE id = ?',
