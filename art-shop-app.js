@@ -32,10 +32,27 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-const sqlite3 = require('sqlite3').verbose();
 const session = require('express-session');
 const bodyParser = require('body-parser');
-const admin = require('firebase-admin');
+
+// Try to load firebase-admin, but make it optional
+let admin;
+try {
+  admin = require('firebase-admin');
+} catch (error) {
+  console.warn('⚠️  firebase-admin module not available:', error.message);
+  admin = null;
+}
+
+// Try to load sqlite3, but make it optional for Vercel
+let sqlite3;
+try {
+  sqlite3 = require('sqlite3').verbose();
+} catch (error) {
+  console.warn('⚠️  sqlite3 module not available:', error.message);
+  console.warn('⚠️  This is expected on Vercel. Consider using a cloud database.');
+  sqlite3 = null;
+}
 
 // Check if running on Vercel (must be early)
 const isVercel = process.env.VERCEL === '1' || process.env.VERCEL;
@@ -153,33 +170,56 @@ app.use(session({
 // Initialize SQLite DB
 // Use in-memory database on Vercel (read-only filesystem)
 // For production, consider using Supabase, Vercel Postgres, or another cloud database
-const DB_FILE = isVercel ? ':memory:' : path.join(__dirname, 'artshop.db');
 let db;
-try {
-  db = new sqlite3.Database(DB_FILE, (err) => {
-    if (err) {
-      console.error('Database initialization error:', err);
-      throw err;
-    }
-  });
-  
-  if (isVercel) {
-    console.log('⚠️  Using in-memory database on Vercel. Data will not persist between deployments.');
-    console.log('💡 For production, migrate to Supabase, Vercel Postgres, or another cloud database.');
-  } else {
-    console.log('✅ Database initialized:', DB_FILE);
-  }
-} catch (error) {
-  console.error('Failed to initialize database:', error);
-  // Create a dummy database object to prevent crashes
+if (!sqlite3) {
+  // sqlite3 not available (common on Vercel)
+  console.warn('⚠️  sqlite3 not available - using mock database');
+  console.warn('💡 For production, migrate to Supabase, Vercel Postgres, or another cloud database.');
   db = {
-    serialize: (cb) => { try { cb(); } catch(e) {} },
-    run: () => {},
-    prepare: () => ({ run: () => {} }),
-    all: (query, cb) => { if (cb) cb(null, []); },
-    get: (query, cb) => { if (cb) cb(null, null); }
+    serialize: (cb) => { try { if (cb) cb(); } catch(e) { console.error('DB serialize error:', e); } },
+    run: (sql, params, cb) => { 
+      if (cb) cb(new Error('Database not available - please use a cloud database'));
+    },
+    prepare: (sql) => ({ 
+      run: (params, cb) => { 
+        if (cb) cb(new Error('Database not available - please use a cloud database'));
+      } 
+    }),
+    all: (sql, params, cb) => { 
+      if (cb) cb(null, []); 
+    },
+    get: (sql, params, cb) => { 
+      if (cb) cb(null, null); 
+    }
   };
-  console.warn('⚠️  Using dummy database - app will run but data operations will fail');
+} else {
+  const DB_FILE = isVercel ? ':memory:' : path.join(__dirname, 'artshop.db');
+  try {
+    db = new sqlite3.Database(DB_FILE, (err) => {
+      if (err) {
+        console.error('Database initialization error:', err);
+        throw err;
+      }
+    });
+    
+    if (isVercel) {
+      console.log('⚠️  Using in-memory database on Vercel. Data will not persist between deployments.');
+      console.log('💡 For production, migrate to Supabase, Vercel Postgres, or another cloud database.');
+    } else {
+      console.log('✅ Database initialized:', DB_FILE);
+    }
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+    // Create a dummy database object to prevent crashes
+    db = {
+      serialize: (cb) => { try { if (cb) cb(); } catch(e) {} },
+      run: () => {},
+      prepare: () => ({ run: () => {} }),
+      all: (query, cb) => { if (cb) cb(null, []); },
+      get: (query, cb) => { if (cb) cb(null, null); }
+    };
+    console.warn('⚠️  Using dummy database - app will run but data operations will fail');
+  }
 }
 
 // Create tables if not exist
