@@ -167,7 +167,8 @@ app.use(session({
   cookie: { 
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     httpOnly: true,
-    secure: false // Set to true if using HTTPS
+    secure: isVercel || process.env.NODE_ENV === 'production', // Use secure cookies on Vercel/production (HTTPS)
+    sameSite: 'lax'
   }
 }));
 
@@ -504,8 +505,24 @@ app.post('/login', (req, res) => {
     return res.render('login', { error: 'Email and password are required', isRegister: false });
   }
   
+  // Special handling for admin login on Vercel (when database is not available)
+  if (isVercel && !sqlite3 && email.trim() === ADMIN_EMAIL && password === ADMIN_PASS) {
+    req.session.user = { id: 1, email: ADMIN_EMAIL, name: 'Admin' };
+    return res.redirect('/admin');
+  }
+  
   db.get('SELECT * FROM users WHERE email = ?', [email.trim()], (err, user) => {
-    if (err) return res.status(500).render('login', { error: 'Database error', isRegister: false });
+    if (err) {
+      console.error('Database error during login:', err);
+      // On Vercel with mock DB, show helpful message
+      if (isVercel && !sqlite3) {
+        return res.render('login', { 
+          error: 'Database not available. This is a demo site. For full functionality, please use a cloud database.', 
+          isRegister: false 
+        });
+      }
+      return res.status(500).render('login', { error: 'Database error', isRegister: false });
+    }
     if (!user || user.password !== password) {
       return res.render('login', { error: 'Invalid email or password', isRegister: false });
     }
@@ -527,8 +544,19 @@ app.post('/register', (req, res) => {
     return res.render('login', { error: 'Password must be at least 6 characters', isRegister: true });
   }
   
+  // On Vercel with mock database, show helpful message
+  if (isVercel && !sqlite3) {
+    return res.render('login', { 
+      error: 'Registration not available. Database not configured. This is a demo site. Please use admin login or configure a cloud database.', 
+      isRegister: true 
+    });
+  }
+  
   db.get('SELECT * FROM users WHERE email = ?', [email.trim()], (err, existing) => {
-    if (err) return res.status(500).render('login', { error: 'Database error', isRegister: true });
+    if (err) {
+      console.error('Database error during registration:', err);
+      return res.status(500).render('login', { error: 'Database error', isRegister: true });
+    }
     if (existing) {
       return res.render('login', { error: 'Email already registered', isRegister: true });
     }
