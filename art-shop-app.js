@@ -37,6 +37,9 @@ const session = require('express-session');
 const bodyParser = require('body-parser');
 const admin = require('firebase-admin');
 
+// Check if running on Vercel (must be early)
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL;
+
 const ADMIN_EMAIL = 'harshitap649@gmail.com'; // Admin email
 const ADMIN_PASS = process.env.ADMIN_PASS || 'adminpass';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'keyboard cat';
@@ -71,8 +74,15 @@ try {
 }
 
 // Ensure uploads dir (for fallback/local development)
+// Skip on Vercel (read-only filesystem)
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
+if (!isVercel) {
+  try {
+    if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
+  } catch (error) {
+    console.warn('Could not create uploads directory:', error.message);
+  }
+}
 
 // Multer setup - use memory storage for Firebase uploads
 const memoryStorage = multer.memoryStorage();
@@ -143,13 +153,33 @@ app.use(session({
 // Initialize SQLite DB
 // Use in-memory database on Vercel (read-only filesystem)
 // For production, consider using Supabase, Vercel Postgres, or another cloud database
-const isVercel = process.env.VERCEL === '1' || process.env.VERCEL;
 const DB_FILE = isVercel ? ':memory:' : path.join(__dirname, 'artshop.db');
-const db = new sqlite3.Database(DB_FILE);
-
-if (isVercel) {
-  console.log('⚠️  Using in-memory database on Vercel. Data will not persist between deployments.');
-  console.log('💡 For production, migrate to Supabase, Vercel Postgres, or another cloud database.');
+let db;
+try {
+  db = new sqlite3.Database(DB_FILE, (err) => {
+    if (err) {
+      console.error('Database initialization error:', err);
+      throw err;
+    }
+  });
+  
+  if (isVercel) {
+    console.log('⚠️  Using in-memory database on Vercel. Data will not persist between deployments.');
+    console.log('💡 For production, migrate to Supabase, Vercel Postgres, or another cloud database.');
+  } else {
+    console.log('✅ Database initialized:', DB_FILE);
+  }
+} catch (error) {
+  console.error('Failed to initialize database:', error);
+  // Create a dummy database object to prevent crashes
+  db = {
+    serialize: (cb) => { try { cb(); } catch(e) {} },
+    run: () => {},
+    prepare: () => ({ run: () => {} }),
+    all: (query, cb) => { if (cb) cb(null, []); },
+    get: (query, cb) => { if (cb) cb(null, null); }
+  };
+  console.warn('⚠️  Using dummy database - app will run but data operations will fail');
 }
 
 // Create tables if not exist
@@ -808,14 +838,21 @@ app.post('/admin/new-art', requireAdmin, upload.single('image'), async (req, res
     // Upload to Firebase Storage if available, otherwise use local storage
     if (firebaseStorage) {
       image_path = await uploadToFirebaseStorage(req.file, 'artworks');
+    } else if (isVercel) {
+      // On Vercel, Firebase Storage is required (read-only filesystem)
+      return res.render('admin-new-art', { error: 'Firebase Storage must be configured for file uploads on Vercel' });
     } else {
-      // Fallback to local storage
-      const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      const ext = path.extname(req.file.originalname);
-      const fileName = unique + ext;
-      const filePath = path.join(UPLOAD_DIR, fileName);
-      fs.writeFileSync(filePath, req.file.buffer);
-      image_path = '/uploads/' + fileName;
+      // Fallback to local storage (local development only)
+      try {
+        const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = path.extname(req.file.originalname);
+        const fileName = unique + ext;
+        const filePath = path.join(UPLOAD_DIR, fileName);
+        fs.writeFileSync(filePath, req.file.buffer);
+        image_path = '/uploads/' + fileName;
+      } catch (error) {
+        return res.render('admin-new-art', { error: 'Failed to save file: ' + error.message });
+      }
     }
     
     const stmt = db.prepare('INSERT INTO artworks (title, description, price, image_path) VALUES (?,?,?,?)');
@@ -884,14 +921,21 @@ app.post('/admin/art/:id/edit', requireAdmin, upload.single('image'), async (req
         let image_path;
         if (firebaseStorage) {
           image_path = await uploadToFirebaseStorage(req.file, 'artworks');
+        } else if (isVercel) {
+          // On Vercel, Firebase Storage is required (read-only filesystem)
+          return res.render('admin-edit-art', { art: art, error: 'Firebase Storage must be configured for file uploads on Vercel' });
         } else {
-          // Fallback to local storage
-          const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const ext = path.extname(req.file.originalname);
-          const fileName = unique + ext;
-          const filePath = path.join(UPLOAD_DIR, fileName);
-          fs.writeFileSync(filePath, req.file.buffer);
-          image_path = '/uploads/' + fileName;
+          // Fallback to local storage (local development only)
+          try {
+            const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+            const ext = path.extname(req.file.originalname);
+            const fileName = unique + ext;
+            const filePath = path.join(UPLOAD_DIR, fileName);
+            fs.writeFileSync(filePath, req.file.buffer);
+            image_path = '/uploads/' + fileName;
+          } catch (error) {
+            return res.render('admin-edit-art', { art: art, error: 'Failed to save file: ' + error.message });
+          }
         }
         
         db.run('UPDATE artworks SET title = ?, description = ?, price = ?, image_path = ? WHERE id = ?',
@@ -937,8 +981,20 @@ app.post('/admin/art/:id/delete', requireAdmin, (req, res) => {
 
 // Start server and create minimal views if missing
 function ensureViews() {
+  // Skip file operations on Vercel (read-only filesystem)
+  // Views should already be in the repository
+  if (isVercel) {
+    console.log('Skipping ensureViews on Vercel - using repository files');
+    return;
+  }
+  
   const viewsDir = path.join(__dirname, 'views');
-  if (!fs.existsSync(viewsDir)) fs.mkdirSync(viewsDir);
+  try {
+    if (!fs.existsSync(viewsDir)) fs.mkdirSync(viewsDir);
+  } catch (error) {
+    console.warn('Could not create views directory:', error.message);
+    return;
+  }
   
   // Remove old layout.ejs if it exists (we use header.ejs and footer.ejs now)
   const oldLayout = path.join(viewsDir, 'layout.ejs');
