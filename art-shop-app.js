@@ -141,8 +141,16 @@ app.use(session({
 }));
 
 // Initialize SQLite DB
-const DB_FILE = path.join(__dirname, 'artshop.db');
+// Use in-memory database on Vercel (read-only filesystem)
+// For production, consider using Supabase, Vercel Postgres, or another cloud database
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL;
+const DB_FILE = isVercel ? ':memory:' : path.join(__dirname, 'artshop.db');
 const db = new sqlite3.Database(DB_FILE);
+
+if (isVercel) {
+  console.log('⚠️  Using in-memory database on Vercel. Data will not persist between deployments.');
+  console.log('💡 For production, migrate to Supabase, Vercel Postgres, or another cloud database.');
+}
 
 // Create tables if not exist
 db.serialize(() => {

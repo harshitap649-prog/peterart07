@@ -5,7 +5,8 @@
   "main": "art-shop-app.js",
   "scripts": {
     "start": "node art-shop-app.js",
-    "dev": "node art-shop-app.js"
+    "dev": "node art-shop-app.js",
+    "build": "echo 'No build step required for Vercel'"
   },
   "keywords": [],
   "author": "",
