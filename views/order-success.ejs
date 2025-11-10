@@ -1,0 +1,32 @@
+<%- include('header') %>
+<div class="order-success-container">
+  <div class="order-success-card">
+    <div class="success-icon-wrapper">
+      <div class="success-icon-circle">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+    <h1 class="success-title">Order Placed Successfully!</h1>
+    <p class="success-message">Thank you for your purchase. Your order has been confirmed and recorded.</p>
+    <div class="order-details-box">
+      <div class="order-detail-row">
+        <span class="order-detail-label">Order ID:</span>
+        <span class="order-detail-value">#<%= orderId %></span>
+      </div>
+      <div class="order-detail-row">
+        <span class="order-detail-label">Artwork:</span>
+        <span class="order-detail-value"><%= art.title %></span>
+      </div>
+    </div>
+    <p class="success-note">The admin will contact you shortly regarding your order. You will receive updates via email.</p>
+    <a href="/gallery" class="back-to-gallery-success-btn">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Back to Gallery</span>
+    </a>
+  </div>
+</div>
+<%- include('footer') %>

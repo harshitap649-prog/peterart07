@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title><%= isRegister ? 'Register' : 'Login' %> - Art Shop</title>
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/login.css">
+<script type="module" src="/firebase-init.js"></script>
+<script>
+// Prevent Firebase errors from blocking page interaction
+window.addEventListener('error', function(e) {
+  if (e.message && e.message.includes('firebase')) {
+    console.warn('Firebase error (non-blocking):', e.message);
+    e.preventDefault();
+  }
+}, true);
+</script>
+</head>
+<body class="login-page">
+<div class="login-container">
+  <div class="login-card">
+    <div class="login-header">
+      <h1><%= isRegister ? 'Create Account' : 'Sign in' %></h1>
+      <p class="login-subtitle"><%= isRegister ? 'Join us to start shopping amazing artworks' : 'Welcome back! Sign in to your account' %></p>
+    </div>
+    <% if (error) { %>
+    <div class="error-message">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M10 6V10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M10 14H10.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span><%= error %></span>
+    </div>
+    <% } %>
+    <form method="post" action="<%= isRegister ? '/register' : '/login' %>" class="login-form">
+      <% if (isRegister) { %>
+      <div class="input-group">
+        <div class="input-icon input-icon-user">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10 10C12.7614 10 15 7.76142 15 5C15 2.23858 12.7614 0 10 0C7.23858 0 5 2.23858 5 5C5 7.76142 7.23858 10 10 10Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M0 20C0 15.5817 4.47715 12 10 12C15.5228 12 20 15.5817 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <input type="text" name="name" placeholder="Full name (optional)" autofocus>
+      </div>
+      <% } %>
+      <div class="input-group">
+        <div class="input-icon input-icon-email">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2.5 6.66667L9.0755 11.0504C9.63533 11.4236 10.3647 11.4236 10.9245 11.0504L17.5 6.66667M3.33333 15H16.6667C17.5871 15 18.3333 14.2538 18.3333 13.3333V6.66667C18.3333 5.74619 17.5871 5 16.6667 5H3.33333C2.41286 5 1.66667 5.74619 1.66667 6.66667V13.3333C1.66667 14.2538 2.41286 15 3.33333 15Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <input type="email" name="email" placeholder="Email address" required <%= !isRegister ? 'autofocus' : '' %>>
+      </div>
+      <div class="input-group">
+        <div class="input-icon input-icon-password">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15.8333 9.16667H4.16667C3.24619 9.16667 2.5 9.91286 2.5 10.8333V15.8333C2.5 16.7538 3.24619 17.5 4.16667 17.5H15.8333C16.7538 17.5 17.5 16.7538 17.5 15.8333V10.8333C17.5 9.91286 16.7538 9.16667 15.8333 9.16667Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M5.83333 9.16667V5.83333C5.83333 4.72876 6.27281 3.66894 7.05301 2.88874C7.8332 2.10854 8.89303 1.66907 9.99767 1.66907C11.1023 1.66907 12.1621 2.10854 12.9423 2.88874C13.7225 3.66894 14.162 4.72876 14.162 5.83333V9.16667" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <input type="password" name="password" placeholder="Password" required>
+      </div>
+      <button type="submit" class="login-button">
+        <span><%= isRegister ? 'Create Account' : 'Get Started' %></span>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </form>
+    <div class="divider">
+      <span>Or</span>
+    </div>
+    <button type="button" onclick="signInWithGoogle()" class="google-button">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      <span>Continue with Google</span>
+    </button>
+    <div class="login-footer">
+      <% if (isRegister) { %>
+        <p>Already have an account? <a href="/login" class="link">Sign in</a></p>
+      <% } else { %>
+        <p>Don't have an account? <a href="/register" class="link">Create one</a></p>
+      <% } %>
+
+    </div>
+  </div>
+  <div class="background-shapes">
+    <div class="shape shape-1"></div>
+    <div class="shape shape-2"></div>
+    <div class="shape shape-3"></div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<%- include('header') %>
+<div class="art-detail-container">
+  <div class="art-detail-grid">
+    <div class="art-detail-image">
+      <img src="<%= art.image_path %>" alt="<%= art.title %>" class="detail-image">
+    </div>
+    <div class="art-detail-info">
+      <h1 class="detail-title"><%= art.title %></h1>
+      <% if (art.description) { %>
+        <div class="detail-description">
+          <p><%= art.description %></p>
+        </div>
+      <% } %>
+      <div class="detail-price-section">
+        <span class="detail-price">₹<%= art.price %></span>
+      </div>
+      <div class="art-social-actions">
+        <button class="art-like-btn <%= typeof isLiked !== 'undefined' && isLiked ? 'liked' : '' %>" onclick="toggleLike(<%= art.id %>)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20.84 4.61C20.3292 4.099 19.7228 3.69364 19.0554 3.41708C18.3879 3.14052 17.6725 2.99817 16.95 2.99817C16.2275 2.99817 15.5121 3.14052 14.8446 3.41708C14.1772 3.69364 13.5708 4.099 13.06 4.61L12 5.67L10.94 4.61C9.9083 3.57831 8.50903 2.99871 7.05 2.99871C5.59096 2.99871 4.19169 3.57831 3.16 4.61C2.1283 5.64169 1.54871 7.04097 1.54871 8.5C1.54871 9.95903 2.1283 11.3583 3.16 12.39L4.22 13.45L12 21.23L19.78 13.45L20.84 12.39C21.351 11.8792 21.7564 11.2728 22.0329 10.6054C22.3095 9.93789 22.4518 9.22248 22.4518 8.5C22.4518 7.77752 22.3095 7.0621 22.0329 6.39464C21.7564 5.72718 21.351 5.12075 20.84 4.61Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="<%= typeof isLiked !== 'undefined' && isLiked ? 'currentColor' : 'none' %>"/>
+          </svg>
+          <span class="like-count" id="like-count"><%= typeof likeCount !== 'undefined' ? likeCount : 0 %></span>
+        </button>
+        <button class="art-share-btn" onclick="shareArtwork(<%= art.id %>)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 8C19.6569 8 21 6.65685 21 5C21 3.34315 19.6569 2 18 2C16.3431 2 15 3.34315 15 5C15 5.35064 15.0602 5.68722 15.1707 6M6 15C7.65685 15 9 13.6569 9 12C9 10.3431 7.65685 9 6 9C4.34315 9 3 10.3431 3 12C3 12.3506 3.06015 12.6872 3.17071 13M18 22C19.6569 22 21 20.6569 21 19C21 17.3431 19.6569 16 18 16C16.3431 16 15 17.3431 15 19C15 19.3506 15.0602 19.6872 15.1707 20M8.82929 6L15.1707 13M8.82929 13L15.1707 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Share</span>
+        </button>
+      </div>
+      <a href="/buy/<%= art.id %>" class="detail-buy-btn">Buy Now</a>
+      <a href="/gallery" class="back-to-gallery">← Back to Gallery</a>
+    </div>
+  </div>
+  <div class="art-comments-section">
+    <h2 class="comments-title">Comments (<span id="comments-count"><%= typeof comments !== 'undefined' ? comments.length : 0 %></span>)</h2>
+    <div class="comment-form-wrapper">
+      <form id="comment-form" class="comment-form" onsubmit="submitComment(event, <%= art.id %>)">
+        <div class="comment-input-group">
+          <textarea id="comment-input" class="comment-input" placeholder="Write a comment..." rows="3" maxlength="500" required></textarea>
+          <div class="comment-char-count"><span id="char-count">0</span>/500</div>
+        </div>
+        <button type="submit" class="comment-submit-btn">Post Comment</button>
+      </form>
+    </div>
+    <div class="comments-list" id="comments-list">
+      <% if (typeof comments !== 'undefined' && comments.length > 0) { %>
+        <% comments.forEach(comment => { %>
+          <div class="comment-item">
+            <div class="comment-avatar">
+              <%= (comment.user_name || 'User').charAt(0).toUpperCase() %>
+            </div>
+            <div class="comment-content">
+              <div class="comment-header">
+                <span class="comment-author"><%= comment.user_name || 'Anonymous' %></span>
+                <span class="comment-date"><%= new Date(comment.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) %></span>
+              </div>
+              <p class="comment-text"><%= comment.comment %></p>
+            </div>
+          </div>
+        <% }) %>
+      <% } else { %>
+        <div class="no-comments">
+          <p>No comments yet. Be the first to comment!</p>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</div>
+<script>
+const artworkId = <%= art.id %>;
+
+function toggleLike(artworkId) {
+  fetch('/art/' + artworkId + '/like', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      const likeBtn = document.querySelector('.art-like-btn');
+      const likeCountEl = document.getElementById('like-count');
+      
+      if (data.liked) {
+        likeBtn.classList.add('liked');
+        likeBtn.querySelector('svg path').setAttribute('fill', 'currentColor');
+      } else {
+        likeBtn.classList.remove('liked');
+        likeBtn.querySelector('svg path').setAttribute('fill', 'none');
+      }
+      
+      likeCountEl.textContent = data.likeCount;
+    } else {
+      alert('Error: ' + (data.error || 'Failed to update like'));
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('An error occurred. Please try again.');
+  });
+}
+
+function shareArtwork(artworkId) {
+  const url = window.location.origin + '/art/' + artworkId;
+  const title = '<%= art.title.replace(/'/g, "\\'") %>';
+  
+  if (navigator.share) {
+    navigator.share({
+      title: title,
+      text: 'Check out this artwork!',
+      url: url
+    }).catch(err => {
+      console.log('Error sharing:', err);
+      copyToClipboard(url);
+    });
+  } else {
+    copyToClipboard(url);
+  }
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    alert('Link copied to clipboard!');
+  }).catch(err => {
+    console.error('Failed to copy:', err);
+    // Fallback for older browsers
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    alert('Link copied to clipboard!');
+  });
+}
+
+function submitComment(event, artworkId) {
+  event.preventDefault();
+  const commentInput = document.getElementById('comment-input');
+  const comment = commentInput.value.trim();
+  
+  if (!comment) {
+    alert('Please enter a comment');
+    return;
+  }
+  
+  fetch('/art/' + artworkId + '/comment', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ comment: comment })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Add comment to the list
+      addCommentToDOM(data.comment);
+      commentInput.value = '';
+      document.getElementById('char-count').textContent = '0';
+      updateCommentsCount();
+    } else {
+      alert('Error: ' + (data.error || 'Failed to post comment'));
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('An error occurred. Please try again.');
+  });
+}
+
+function addCommentToDOM(comment) {
+  const commentsList = document.getElementById('comments-list');
+  const noComments = commentsList.querySelector('.no-comments');
+  if (noComments) {
+    noComments.remove();
+  }
+  
+  const commentItem = document.createElement('div');
+  commentItem.className = 'comment-item';
+  const userName = (comment.user_name || 'User').charAt(0).toUpperCase();
+  const displayName = comment.user_name || 'Anonymous';
+  const commentDate = new Date(comment.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const commentText = comment.comment.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  commentItem.innerHTML = '<div class="comment-avatar">' + userName + '</div><div class="comment-content"><div class="comment-header"><span class="comment-author">' + displayName + '</span><span class="comment-date">' + commentDate + '</span></div><p class="comment-text">' + commentText + '</p></div>';
+  
+  commentsList.insertBefore(commentItem, commentsList.firstChild);
+}
+
+function updateCommentsCount() {
+  const commentsList = document.getElementById('comments-list');
+  const comments = commentsList.querySelectorAll('.comment-item');
+  document.getElementById('comments-count').textContent = comments.length;
+}
+
+// Character count for comment input
+const commentInput = document.getElementById('comment-input');
+const charCount = document.getElementById('char-count');
+if (commentInput && charCount) {
+  commentInput.addEventListener('input', function() {
+    charCount.textContent = this.value.length;
+  });
+}
+</script>
+<%- include('footer') %>

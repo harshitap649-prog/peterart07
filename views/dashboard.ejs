@@ -1,0 +1,22 @@
+<%- include('header') %>
+<h2>My Dashboard</h2>
+<p>Welcome, <%= user.name || user.email %>!</p>
+<h3>My Orders</h3>
+<% if (orders.length === 0) { %>
+  <p>You haven't placed any orders yet. <a href="/gallery">Browse our gallery</a> to get started!</p>
+<% } else { %>
+  <table class="table">
+    <tr><th>Order ID</th><th>Artwork</th><th>Title</th><th>Price</th><th>Status</th><th>Date</th></tr>
+    <% orders.forEach(o=>{ %>
+      <tr>
+        <td>#<%= o.id %></td>
+        <td><img src="<%= o.image_path %>" style="height:60px"></td>
+        <td><%= o.title %></td>
+        <td>₹<%= o.price %></td>
+        <td><span class="status status-<%= o.status %>"><%= o.status %></span></td>
+        <td><%= new Date(o.created_at).toLocaleDateString() %></td>
+      </tr>
+    <% }) %>
+  </table>
+<% } %>
+<%- include('footer') %>

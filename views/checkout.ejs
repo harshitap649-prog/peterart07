@@ -1,0 +1,56 @@
+<%- include('header') %>
+<div class="checkout-container">
+  <div class="checkout-content">
+    <div class="checkout-artwork-preview">
+      <img src="<%= art.image_path %>" alt="<%= art.title %>" class="checkout-preview-image">
+      <div class="checkout-preview-info">
+        <h3><%= art.title %></h3>
+        <p class="checkout-preview-quantity">Quantity: <%= typeof quantity !== 'undefined' ? quantity : 1 %></p>
+        <p class="checkout-preview-price">Price per unit: ₹<%= art.price %></p>
+        <p class="checkout-preview-total">Total: ₹<%= typeof totalPrice !== 'undefined' ? totalPrice.toFixed(0) : art.price %></p>
+        <p class="checkout-payment-method">Payment: Cash on Delivery</p>
+      </div>
+    </div>
+    <div class="checkout-form-wrapper">
+      <h2 class="checkout-form-title">Delivery Information</h2>
+      <% if (errors && errors.length) { %>
+        <ul class="errors">
+          <% errors.forEach(e=>{ %>
+            <li><%= e %></li>
+          <% }) %>
+        </ul>
+      <% } %>
+      <form method="post" action="/buy/<%= art.id %>" class="checkout-form">
+        <input type="hidden" name="payment_method" value="cod">
+        <input type="hidden" name="quantity" value="<%= typeof quantity !== 'undefined' ? quantity : 1 %>">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" name="buyer_name" value="<%= values.buyer_name || '' %>" placeholder="Enter your full name" required>
+        </div>
+        <div class="form-group">
+          <label>Email (Optional)</label>
+          <input type="email" name="buyer_email" value="<%= values.buyer_email || '' %>" placeholder="your.email@example.com">
+        </div>
+        <div class="form-group">
+          <label>Phone Number</label>
+          <input type="tel" name="phone" value="<%= values.phone || '' %>" placeholder="Enter your 10-digit phone number" required minlength="10" maxlength="10">
+        </div>
+        <div class="form-group">
+          <label>Address Line 1</label>
+          <input type="text" name="address1" value="<%= values.address1 || '' %>" placeholder="House/Flat No., Building Name" required>
+        </div>
+        <div class="form-group">
+          <label>Address Line 2 (Optional)</label>
+          <input type="text" name="address2" value="<%= values.address2 || '' %>" placeholder="Street, Area, Landmark">
+        </div>
+        <div class="form-group">
+          <label>Pin Code</label>
+          <input type="text" name="pincode" value="<%= values.pincode || '' %>" placeholder="Enter 6-digit pin code" required minlength="6" maxlength="6" pattern="[0-9]{6}">
+        </div>
+        <button type="submit" class="submit-order-btn">Place Order</button>
+      </form>
+      <a href="/buy/<%= art.id %>/payment?quantity=<%= typeof quantity !== 'undefined' ? quantity : 1 %>" class="back-link">← Back to Payment Options</a>
+    </div>
+  </div>
+</div>
+<%- include('footer') %>

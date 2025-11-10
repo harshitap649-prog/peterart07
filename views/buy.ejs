@@ -1,0 +1,89 @@
+<%- include('header') %>
+<div class="buy-container">
+  <div class="buy-product-details">
+    <div class="buy-product-image-wrapper">
+      <img src="<%= art.image_path %>" alt="<%= art.title %>" class="buy-product-image">
+    </div>
+    <div class="buy-product-info">
+      <h1 class="buy-product-title"><%= art.title %></h1>
+      <% if (art.description) { %>
+        <p class="buy-product-description"><%= art.description %></p>
+      <% } %>
+      <div class="buy-product-price-section">
+        <span class="buy-product-price-label">Price per unit:</span>
+        <span class="buy-product-price">₹<%= art.price %></span>
+      </div>
+      <div class="quantity-selector-section">
+        <label class="quantity-label">Quantity:</label>
+        <div class="quantity-controls">
+          <button type="button" class="quantity-btn quantity-decrease" onclick="decreaseQuantity()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <input type="number" id="quantity-input" class="quantity-input" value="1" min="1" max="5" onchange="updatePrice()" oninput="updatePrice()">
+          <button type="button" class="quantity-btn quantity-increase" onclick="increaseQuantity()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="buy-product-total-section">
+        <span class="buy-product-total-label">Total:</span>
+        <span class="buy-product-total" id="total-price">₹<%= art.price %></span>
+      </div>
+      <a href="#" onclick="goToPayment(event)" class="buy-now-main-btn">Buy Now</a>
+      <a href="/gallery" class="back-to-gallery-link">← Back to Gallery</a>
+    </div>
+  </div>
+</div>
+<script>
+const basePrice = <%= art.price %>;
+const artworkId = <%= art.id %>;
+
+function updatePrice() {
+  const quantityInput = document.getElementById('quantity-input');
+  let quantity = parseInt(quantityInput.value) || 1;
+  
+  if (quantity < 1) quantity = 1;
+  if (quantity > 5) quantity = 5;
+  
+  quantityInput.value = quantity;
+  
+  const total = basePrice * quantity;
+  document.getElementById('total-price').textContent = '₹' + total.toFixed(0);
+  
+  // Update button states
+  document.querySelector('.quantity-decrease').disabled = quantity <= 1;
+  document.querySelector('.quantity-increase').disabled = quantity >= 5;
+}
+
+function decreaseQuantity() {
+  const quantityInput = document.getElementById('quantity-input');
+  let quantity = parseInt(quantityInput.value) || 1;
+  if (quantity > 1) {
+    quantityInput.value = quantity - 1;
+    updatePrice();
+  }
+}
+
+function increaseQuantity() {
+  const quantityInput = document.getElementById('quantity-input');
+  let quantity = parseInt(quantityInput.value) || 1;
+  if (quantity < 5) {
+    quantityInput.value = quantity + 1;
+    updatePrice();
+  }
+}
+
+function goToPayment(event) {
+  event.preventDefault();
+  const quantity = document.getElementById('quantity-input').value;
+  window.location.href = '/buy/' + artworkId + '/payment?quantity=' + quantity;
+}
+
+// Initialize on page load
+updatePrice();
+</script>
+<%- include('footer') %>
