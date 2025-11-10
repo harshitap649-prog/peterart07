@@ -64,30 +64,34 @@ const PORT = process.env.PORT || 3000;
 
 // Firebase Admin initialization
 let firebaseStorage = null;
-try {
-  // Initialize Firebase Admin if credentials are provided
-  if (process.env.FIREBASE_PROJECT_ID || process.env.FIREBASE_SERVICE_ACCOUNT) {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      // Use service account JSON from environment variable
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'peterart07-e9c21.firebasestorage.app'
-      });
+if (admin) {
+  try {
+    // Initialize Firebase Admin if credentials are provided
+    if (process.env.FIREBASE_PROJECT_ID || process.env.FIREBASE_SERVICE_ACCOUNT) {
+      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        // Use service account JSON from environment variable
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+          storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'peterart07-e9c21.firebasestorage.app'
+        });
+      } else {
+        // Use default credentials (for local development with gcloud)
+        admin.initializeApp({
+          storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'peterart07-e9c21.firebasestorage.app'
+        });
+      }
+      firebaseStorage = admin.storage();
+      console.log('Firebase Storage initialized successfully');
     } else {
-      // Use default credentials (for local development with gcloud)
-      admin.initializeApp({
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'peterart07-e9c21.firebasestorage.app'
-      });
+      console.log('Firebase Storage not configured - using local storage');
     }
-    firebaseStorage = admin.storage();
-    console.log('Firebase Storage initialized successfully');
-  } else {
-    console.log('Firebase Storage not configured - using local storage');
+  } catch (error) {
+    console.warn('Firebase Admin initialization failed:', error.message);
+    console.log('Falling back to local file storage');
   }
-} catch (error) {
-  console.warn('Firebase Admin initialization failed:', error.message);
-  console.log('Falling back to local file storage');
+} else {
+  console.log('firebase-admin not available - file uploads will require Firebase Storage configuration');
 }
 
 // Ensure uploads dir (for fallback/local development)
