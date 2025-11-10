@@ -6,29 +6,79 @@
 <title><%= isRegister ? 'Register' : 'Login' %> - Art Shop</title>
 <link rel="stylesheet" href="/styles.css">
 <link rel="stylesheet" href="/login.css">
-<script type="module" src="/firebase-init.js"></script>
-<script>
-// Prevent Firebase errors from blocking page interaction
-window.addEventListener('error', function(e) {
-  if (e.message && (e.message.includes('firebase') || e.message.includes('require') || e.message.includes('exports'))) {
-    console.warn('Firebase error (non-blocking):', e.message);
-    e.preventDefault();
-  }
-}, true);
+<!-- Load Firebase using CDN (more reliable than ES modules) -->
+<script type="module">
+// Import Firebase modules
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-// Fallback for signInWithGoogle if Firebase fails to load
-if (typeof window.signInWithGoogle === 'undefined') {
-  window.signInWithGoogle = function() {
-    alert('Google Sign-In is not available. Please use email/password login or check your browser console for errors.');
-    console.error('signInWithGoogle function not loaded. Check if firebase-init.js loaded correctly.');
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyA4WOB2O6tKWlg_JV-d4x_g7e71ZBUAyKM",
+  authDomain: "peterart07-e9c21.firebaseapp.com",
+  projectId: "peterart07-e9c21",
+  storageBucket: "peterart07-e9c21.firebasestorage.app",
+  messagingSenderId: "432565217491",
+  appId: "1:432565217491:web:6ac9b428d6859e4a8b0c26",
+  measurementId: "G-QTDV8ZWM8W"
+};
+
+try {
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  let analytics = null;
+  const auth = getAuth(app);
+  const googleProvider = new GoogleAuthProvider();
+
+  // Initialize Analytics (optional)
+  if (typeof window !== 'undefined') {
+    try {
+      analytics = getAnalytics(app);
+    } catch (error) {
+      console.warn('Firebase Analytics initialization failed:', error);
+    }
+  }
+
+  // Google Sign In function
+  window.signInWithGoogle = async function() {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      // Send user data to server
+      const response = await fetch('/auth/google', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: user.email,
+          name: user.displayName,
+          photoURL: user.photoURL,
+          uid: user.uid
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        window.location.href = data.redirect || '/gallery';
+      } else {
+        alert('Login failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      alert('Google sign-in failed: ' + (error.message || 'Please try again.'));
+    }
   };
   
-  // Try to load it after a delay
-  setTimeout(function() {
-    if (typeof window.signInWithGoogle === 'undefined') {
-      console.warn('Firebase initialization may have failed. Google Sign-In will not work.');
-    }
-  }, 1000);
+  console.log('Firebase initialized successfully');
+} catch (error) {
+  console.error('Firebase initialization error:', error);
+  // Fallback function
+  window.signInWithGoogle = function() {
+    alert('Google Sign-In is not available. Please use email/password login.\n\nError: ' + error.message);
+  };
 }
 </script>
 </head>
