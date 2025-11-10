@@ -1066,7 +1066,7 @@ function ensureViews() {
   } catch (error) {
     console.warn('Could not create views directory:', error.message);
     return;
-  }
+  } 
   
   // Remove old layout.ejs if it exists (we use header.ejs and footer.ejs now)
   const oldLayout = path.join(viewsDir, 'layout.ejs');
@@ -1195,10 +1195,7 @@ async function signInWithGoogle() {
 }
 
 // Make function available globally
-window.signInWithGoogle = signInWithGoogle;
-
-// Export for use in other modules
-export { app, analytics, auth, googleProvider };`;
+window.signInWithGoogle = signInWithGoogle;`;
   fs.writeFileSync(firebaseJsPath, firebaseJs);
 
   // Login page CSS (always overwrite to ensure latest design)

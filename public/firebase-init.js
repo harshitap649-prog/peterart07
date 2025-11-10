@@ -63,6 +63,3 @@ async function signInWithGoogle() {
 
 // Make function available globally
 window.signInWithGoogle = signInWithGoogle;
-
-// Export for use in other modules
-export { app, analytics, auth, googleProvider };
