@@ -49,14 +49,40 @@ NODE_ENV=production
 - Railway Dashboard → Settings → Domains
 - Add your custom domain
 
+## 7. Configure Data Persistence (IMPORTANT! ⚠️)
+
+**To prevent losing artworks on redeployments, you MUST configure persistence:**
+
+### Option A: Use Firebase Storage (Recommended)
+Add these environment variables in Railway:
+```
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_STORAGE_BUCKET=your-bucket.firebasestorage.app
+FIREBASE_SERVICE_ACCOUNT={"type":"service_account",...}
+```
+This stores all images in Firebase (persistent, fast CDN).
+
+### Option B: Add Railway Volume (For Database + Local Files)
+1. In Railway dashboard → Your project → Click **"New"** → **"Volume"**
+2. Name it: `persistent-data`
+3. Size: 1GB (or more)
+4. Go to your service → **Settings** → **Volumes** tab
+5. Click **"Mount Volume"**
+6. Select `persistent-data`
+7. Mount path: `/data`
+8. Click **"Deploy"**
+
+**See `RAILWAY_PERSISTENCE.md` for detailed instructions.**
+
 ## That's It! 🎉
 
 Your app will work **exactly like localhost** because:
-- ✅ SQLite database persists (not in-memory)
-- ✅ File uploads work (`/uploads` folder)
+- ✅ SQLite database persists (with volume configured)
+- ✅ File uploads work (Firebase Storage or `/data/uploads` folder)
 - ✅ Sessions work properly
 - ✅ All routes work correctly
 - ✅ No serverless limitations
+- ✅ **Data persists across deployments** (with proper setup)
 
 ## Troubleshooting
 

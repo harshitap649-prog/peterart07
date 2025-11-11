@@ -96,10 +96,32 @@ if (admin) {
 
 // Ensure uploads dir (for fallback/local development)
 // Skip on Vercel (read-only filesystem)
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
-if (!isVercel) {
+// Use persistent volume on Railway, or local directory otherwise
+let UPLOAD_DIR;
+if (isVercel) {
+  UPLOAD_DIR = null; // Vercel requires Firebase Storage
+} else if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+  // Railway persistent volume
+  UPLOAD_DIR = path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'uploads');
+} else if (process.env.RAILWAY_ENVIRONMENT) {
+  // Railway without volume - use /data directory (should be mounted)
+  const dataDir = '/data';
+  if (fs.existsSync(dataDir)) {
+    UPLOAD_DIR = path.join(dataDir, 'uploads');
+  } else {
+    // Fallback to project directory (will be lost on redeploy)
+    UPLOAD_DIR = path.join(__dirname, 'uploads');
+    console.warn('⚠️  /data directory not found. Uploads will not persist across deployments.');
+    console.warn('💡 Configure a Railway volume mount at /data for persistence, or use Firebase Storage.');
+  }
+} else {
+  // Local development
+  UPLOAD_DIR = path.join(__dirname, 'uploads');
+}
+
+if (!isVercel && UPLOAD_DIR) {
   try {
-    if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
+    if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
   } catch (error) {
     console.warn('Could not create uploads directory:', error.message);
   }
@@ -214,8 +236,41 @@ if (!sqlite3) {
     }
   };
 } else {
-  const DB_FILE = isVercel ? ':memory:' : path.join(__dirname, 'artshop.db');
+  // Use persistent volume on Railway, or local file otherwise
+  let DB_FILE;
+  if (isVercel) {
+    DB_FILE = ':memory:';
+  } else if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+    // Railway persistent volume
+    DB_FILE = path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'artshop.db');
+    console.log('✅ Using Railway persistent volume for database');
+  } else if (process.env.RAILWAY_ENVIRONMENT) {
+    // Railway without volume - use /data directory (should be mounted)
+    const dataDir = '/data';
+    if (fs.existsSync(dataDir)) {
+      DB_FILE = path.join(dataDir, 'artshop.db');
+      console.log('✅ Using /data directory for database on Railway');
+    } else {
+      // Fallback to project directory (will be lost on redeploy)
+      DB_FILE = path.join(__dirname, 'artshop.db');
+      console.warn('⚠️  /data directory not found. Database will not persist across deployments.');
+      console.warn('💡 Configure a Railway volume mount at /data for persistence.');
+    }
+  } else {
+    // Local development
+    DB_FILE = path.join(__dirname, 'artshop.db');
+  }
+  
   try {
+    // Ensure directory exists for Railway volume
+    if (DB_FILE !== ':memory:' && DB_FILE !== path.join(__dirname, 'artshop.db')) {
+      const dbDir = path.dirname(DB_FILE);
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+        console.log('✅ Created database directory:', dbDir);
+      }
+    }
+    
     db = new sqlite3.Database(DB_FILE, (err) => {
       if (err) {
         console.error('Database initialization error:', err);
