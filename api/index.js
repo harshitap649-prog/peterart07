@@ -32,12 +32,7 @@ try {
 // Export as Vercel serverless function
 // Express app can be used directly as a request handler
 if (app) {
-  // Export the Express app as the handler
-  // Vercel will call this function for all routes
-  module.exports = (req, res) => {
-    // Ensure the app handles the request
-    return app(req, res);
-  };
+  module.exports = app;
 } else {
   module.exports = (req, res) => {
     res.status(500).json({ error: 'App not initialized' });
