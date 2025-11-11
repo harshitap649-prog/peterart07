@@ -18,8 +18,9 @@ window.addEventListener('error', function(e) {
 </script>
 </head>
 <body class="login-page">
-<div class="login-container">
-  <div class="login-card">
+<div class="login-wrapper">
+  <div class="login-container">
+    <div class="login-card">
     <div class="login-header">
       <h1><%= isRegister ? 'Create Account' : 'Sign in' %></h1>
       <p class="login-subtitle"><%= isRegister ? 'Join us to start shopping amazing artworks' : 'Welcome back! Sign in to your account' %></p>
@@ -96,9 +97,8 @@ window.addEventListener('error', function(e) {
     <div class="shape shape-2"></div>
     <div class="shape shape-3"></div>
   </div>
-</div>
-<!-- Banner Ad -->
-<div id="adsterra-banner" style="text-align:center;padding:20px;background:#f9fafb;border-top:1px solid #e5e7eb;margin-top:40px;position:relative;z-index:1;min-height:90px;display:flex;align-items:center;justify-content:center;width:100%;clear:both;">
+  <!-- Banner Ad -->
+  <div id="adsterra-banner" class="login-banner-ad">
 	<script type="text/javascript">
 		atOptions = {
 			'key' : '72ecbd69b14282559493f40ce169e724',
@@ -109,6 +109,7 @@ window.addEventListener('error', function(e) {
 		};
 	</script>
 	<script type="text/javascript" src="//www.highperformanceformat.com/72ecbd69b14282559493f40ce169e724/invoke.js"></script>
+  </div>
 </div>
 </body>
 </html>
