@@ -6,111 +6,15 @@
 <title><%= isRegister ? 'Register' : 'Login' %> - Art Shop</title>
 <link rel="stylesheet" href="/styles.css">
 <link rel="stylesheet" href="/login.css">
-<!-- Load Firebase using CDN (more reliable than ES modules) -->
-<script type="module">
-// Import Firebase modules
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyA4WOB2O6tKWlg_JV-d4x_g7e71ZBUAyKM",
-  authDomain: "peterart07-e9c21.firebaseapp.com",
-  projectId: "peterart07-e9c21",
-  storageBucket: "peterart07-e9c21.firebasestorage.app",
-  messagingSenderId: "432565217491",
-  appId: "1:432565217491:web:6ac9b428d6859e4a8b0c26",
-  measurementId: "G-QTDV8ZWM8W"
-};
-
-try {
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  let analytics = null;
-  const auth = getAuth(app);
-  const googleProvider = new GoogleAuthProvider();
-
-  // Initialize Analytics (optional)
-  if (typeof window !== 'undefined') {
-    try {
-      analytics = getAnalytics(app);
-    } catch (error) {
-      console.warn('Firebase Analytics initialization failed:', error);
-    }
+<script type="module" src="/firebase-init.js"></script>
+<script>
+// Prevent Firebase errors from blocking page interaction
+window.addEventListener('error', function(e) {
+  if (e.message && e.message.includes('firebase')) {
+    console.warn('Firebase error (non-blocking):', e.message);
+    e.preventDefault();
   }
-
-  // Google Sign In function with better error handling
-  let isSigningIn = false; // Prevent multiple simultaneous requests
-  
-  window.signInWithGoogle = async function() {
-    // Prevent multiple simultaneous sign-in attempts
-    if (isSigningIn) {
-      console.log('Sign-in already in progress, please wait...');
-      return;
-    }
-    
-    isSigningIn = true;
-    
-    try {
-      // Add custom parameters to Google provider
-      googleProvider.setCustomParameters({
-        prompt: 'select_account'
-      });
-      
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      
-      // Send user data to server
-      const response = await fetch('/auth/google', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: user.email,
-          name: user.displayName,
-          photoURL: user.photoURL,
-          uid: user.uid
-        })
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        window.location.href = data.redirect || '/gallery';
-      } else {
-        alert('Login failed: ' + (data.error || 'Unknown error'));
-        isSigningIn = false;
-      }
-    } catch (error) {
-      console.error('Google sign-in error:', error);
-      
-      // Handle specific Firebase errors
-      let errorMessage = 'Please try again.';
-      
-      if (error.code === 'auth/cancelled-popup-request') {
-        errorMessage = 'Please wait for the popup to load, or try again. Make sure popups are not blocked.';
-      } else if (error.code === 'auth/popup-blocked') {
-        errorMessage = 'Popup was blocked by your browser. Please allow popups for this site and try again.';
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        errorMessage = 'Sign-in was cancelled. Please try again and complete the sign-in process.';
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      alert('Google sign-in failed: ' + errorMessage);
-      isSigningIn = false;
-    }
-  };
-  
-  console.log('Firebase initialized successfully');
-} catch (error) {
-  console.error('Firebase initialization error:', error);
-  // Fallback function
-  window.signInWithGoogle = function() {
-    alert('Google Sign-In is not available. Please use email/password login.\n\nError: ' + error.message);
-  };
-}
+}, true);
 </script>
 </head>
 <body class="login-page">

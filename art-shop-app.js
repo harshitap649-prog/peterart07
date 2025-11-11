@@ -156,10 +156,22 @@ async function deleteFromFirebaseStorage(imageUrl) {
 const app = express();
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+
+// Request logging middleware (for debugging) - must be after bodyParser
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  if (req.method === 'POST' && req.body && Object.keys(req.body).length > 0) {
+    const bodyCopy = { ...req.body };
+    if (bodyCopy.password) bodyCopy.password = '***';
+    console.log('Request body:', bodyCopy);
+  }
+  next();
+});
 app.use(session({ 
   secret: SESSION_SECRET, 
   resave: false, 
@@ -501,52 +513,82 @@ app.get('/register', (req, res) => {
 
 app.post('/login', (req, res) => {
   const { email, password } = req.body;
+  
+  console.log('=== LOGIN ATTEMPT ===');
+  console.log('Email received:', email);
+  console.log('Password received:', password ? '***' : 'MISSING');
+  console.log('Request body:', { email, hasPassword: !!password });
+  
   if (!email || !password) {
+    console.log('Missing email or password');
     return res.render('login', { error: 'Email and password are required', isRegister: false });
   }
   
-  // Special handling for admin login on Vercel (when database is not available)
-  // Also works if environment variables aren't set (uses defaults)
+  // Admin login check - always check first, regardless of database availability
   const adminEmail = ADMIN_EMAIL || 'harshitap649@gmail.com';
   const adminPass = ADMIN_PASS || 'adminpass';
   
-  console.log('Login attempt:', { email: email.trim(), isVercel, hasSqlite3: !!sqlite3, adminEmail });
+  const trimmedEmail = email.trim().toLowerCase();
+  const adminEmailLower = adminEmail.toLowerCase();
   
-  // If database not available, allow admin login with hardcoded credentials
-  if (!sqlite3 || (isVercel && !sqlite3)) {
-    if (email.trim().toLowerCase() === adminEmail.toLowerCase() && password === adminPass) {
-      req.session.user = { id: 1, email: adminEmail, name: 'Admin' };
-      console.log('Admin login successful (no database)');
+  console.log('Comparing:', { 
+    inputEmail: trimmedEmail, 
+    adminEmail: adminEmailLower,
+    emailMatch: trimmedEmail === adminEmailLower,
+    passwordMatch: password === adminPass,
+    adminPass: adminPass
+  });
+  
+  // Check admin credentials first (works even if database is available)
+  if (trimmedEmail === adminEmailLower && password === adminPass) {
+    req.session.user = { id: 1, email: adminEmail, name: 'Admin' };
+    console.log('✅ Admin login successful - setting session:', req.session.user);
+    
+    // Save session before redirect
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).render('login', { error: 'Session error. Please try again.', isRegister: false });
+      }
+      console.log('Session saved successfully, redirecting to /admin');
       return res.redirect('/admin');
-    } else {
-      console.log('Admin login failed:', { 
-        emailMatch: email.trim().toLowerCase() === adminEmail.toLowerCase(),
-        passwordMatch: password === adminPass 
-      });
-    }
+    });
+    return;
   }
   
+  console.log('❌ Admin login failed');
+  
+  // If database not available, only admin login works
+  if (!sqlite3 || (isVercel && !sqlite3)) {
+    console.log('Database not available - only admin can login');
+    return res.render('login', { 
+      error: 'Invalid email or password. Only admin login is available when database is not configured.', 
+      isRegister: false 
+    });
+  }
+  
+  // Query database for regular users
   db.get('SELECT * FROM users WHERE email = ?', [email.trim()], (err, user) => {
     if (err) {
       console.error('Database error during login:', err);
-      // On Vercel with mock DB, show helpful message
-      if (isVercel && !sqlite3) {
-        return res.render('login', { 
-          error: 'Database not available. This is a demo site. For full functionality, please use a cloud database.', 
-          isRegister: false 
-        });
-      }
       return res.status(500).render('login', { error: 'Database error', isRegister: false });
     }
     if (!user || user.password !== password) {
+      console.log('User not found or password mismatch');
       return res.render('login', { error: 'Invalid email or password', isRegister: false });
     }
     
     req.session.user = { id: user.id, email: user.email, name: user.name };
-    if (user.email === ADMIN_EMAIL) {
-      return res.redirect('/admin');
-    }
-    res.redirect('/gallery');
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).render('login', { error: 'Session error. Please try again.', isRegister: false });
+      }
+      if (user.email === ADMIN_EMAIL) {
+        return res.redirect('/admin');
+      }
+      res.redirect('/gallery');
+    });
   });
 });
 
@@ -867,7 +909,21 @@ app.get('/buy/:id/checkout', (req, res) => {
 });
 
 function requireAdmin(req, res, next) {
-  if (req.session.user && req.session.user.email === ADMIN_EMAIL) return next();
+  console.log('=== requireAdmin CHECK ===');
+  console.log('Session user:', req.session.user);
+  console.log('ADMIN_EMAIL constant:', ADMIN_EMAIL);
+  console.log('Email match:', req.session.user?.email === ADMIN_EMAIL);
+  console.log('Email comparison:', { 
+    sessionEmail: req.session.user?.email, 
+    adminEmail: ADMIN_EMAIL,
+    match: req.session.user?.email === ADMIN_EMAIL 
+  });
+  
+  if (req.session.user && req.session.user.email === ADMIN_EMAIL) {
+    console.log('✅ Admin access granted');
+    return next();
+  }
+  console.log('❌ Admin access denied - redirecting to login');
   return res.redirect('/login');
 }
 
