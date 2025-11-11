@@ -349,8 +349,13 @@ app.use((req, res, next) => {
 
 // Middleware to ensure session is saved after response (critical for serverless)
 app.use((req, res, next) => {
-  // Override res.end to save session before sending response
+  // Store original methods
   const originalEnd = res.end.bind(res);
+  const originalRedirect = res.redirect.bind(res);
+  const originalJson = res.json.bind(res);
+  const originalRender = res.render.bind(res);
+  
+  // Override res.end to save session before sending response
   res.end = function(chunk, encoding) {
     if (req.session && req.session.user) {
       req.session.save(() => {
@@ -360,6 +365,41 @@ app.use((req, res, next) => {
       originalEnd(chunk, encoding);
     }
   };
+  
+  // Override res.redirect to save session before redirecting
+  res.redirect = function(url) {
+    if (req.session && req.session.user) {
+      req.session.save(() => {
+        originalRedirect(url);
+      });
+    } else {
+      originalRedirect(url);
+    }
+  };
+  
+  // Override res.json to save session before sending JSON
+  res.json = function(obj) {
+    if (req.session && req.session.user) {
+      req.session.save(() => {
+        originalJson(obj);
+      });
+    } else {
+      originalJson(obj);
+    }
+  };
+  
+  // Override res.render to save session before rendering
+  res.render = function(view, options, callback) {
+    const self = this;
+    if (req.session && req.session.user) {
+      req.session.save(() => {
+        originalRender.call(self, view, options, callback);
+      });
+    } else {
+      originalRender.call(self, view, options, callback);
+    }
+  };
+  
   next();
 });
 
