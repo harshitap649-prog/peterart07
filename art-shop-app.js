@@ -174,14 +174,16 @@ app.use((req, res, next) => {
 });
 app.use(session({ 
   secret: SESSION_SECRET, 
-  resave: false, 
-  saveUninitialized: false,
+  resave: true, // Changed to true for serverless
+  saveUninitialized: true, // Changed to true for serverless
   cookie: { 
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     httpOnly: true,
-    secure: isVercel || process.env.NODE_ENV === 'production', // Use secure cookies on Vercel/production (HTTPS)
+    secure: false, // Set to false - Vercel handles HTTPS, but secure cookies can cause issues
     sameSite: 'lax'
-  }
+  },
+  // For Vercel/serverless, we need to ensure sessions work
+  name: 'artshop.sid' // Custom session name
 }));
 
 // Initialize SQLite DB
@@ -531,12 +533,19 @@ app.post('/login', (req, res) => {
   const trimmedEmail = email.trim().toLowerCase();
   const adminEmailLower = adminEmail.toLowerCase();
   
+  console.log('=== LOGIN DEBUG INFO ===');
+  console.log('isVercel:', isVercel);
+  console.log('ADMIN_EMAIL from env:', process.env.ADMIN_EMAIL);
+  console.log('ADMIN_PASS from env:', process.env.ADMIN_PASS ? 'SET' : 'NOT SET');
+  console.log('Using adminEmail:', adminEmail);
+  console.log('Using adminPass:', adminPass);
   console.log('Comparing:', { 
     inputEmail: trimmedEmail, 
     adminEmail: adminEmailLower,
     emailMatch: trimmedEmail === adminEmailLower,
     passwordMatch: password === adminPass,
-    adminPass: adminPass
+    passwordLength: password?.length,
+    adminPassLength: adminPass?.length
   });
   
   // Check admin credentials first (works even if database is available)
