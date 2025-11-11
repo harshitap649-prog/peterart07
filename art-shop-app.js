@@ -331,11 +331,17 @@ db.serialize(() => {
   });
 });
 
-// Middleware to expose user and admin flags
+// Middleware to expose user and admin flags and refresh session
 app.use((req, res, next) => {
   res.locals.isAdmin = !!(req.session.user && req.session.user.email === ADMIN_EMAIL);
   res.locals.isLoggedIn = !!req.session.user;
   res.locals.user = req.session.user || null;
+  
+  // Refresh session on each request to keep user logged in
+  if (req.session.user) {
+    req.session.touch(); // Update session expiration
+  }
+  
   next();
 });
 
@@ -550,17 +556,26 @@ app.post('/login', (req, res) => {
   
   // Check admin credentials first (works even if database is available)
   if (trimmedEmail === adminEmailLower && password === adminPass) {
-    req.session.user = { id: 1, email: adminEmail, name: 'Admin' };
-    console.log('✅ Admin login successful - setting session:', req.session.user);
-    
-    // Save session before redirect
-    req.session.save((err) => {
+    // Regenerate session ID for security on login
+    req.session.regenerate((err) => {
       if (err) {
-        console.error('Session save error:', err);
+        console.error('Session regeneration error:', err);
         return res.status(500).render('login', { error: 'Session error. Please try again.', isRegister: false });
       }
-      console.log('Session saved successfully, redirecting to /admin');
-      return res.redirect('/admin');
+      
+      // Set user in session
+      req.session.user = { id: 1, email: adminEmail, name: 'Admin' };
+      console.log('✅ Admin login successful - setting session:', req.session.user);
+      
+      // Save session before redirect
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          return res.status(500).render('login', { error: 'Session error. Please try again.', isRegister: false });
+        }
+        console.log('Session saved successfully, redirecting to /admin');
+        return res.redirect('/admin');
+      });
     });
     return;
   }
@@ -587,16 +602,25 @@ app.post('/login', (req, res) => {
       return res.render('login', { error: 'Invalid email or password', isRegister: false });
     }
     
-    req.session.user = { id: user.id, email: user.email, name: user.name };
-    req.session.save((err) => {
+    // Regenerate session ID for security on login
+    req.session.regenerate((err) => {
       if (err) {
-        console.error('Session save error:', err);
+        console.error('Session regeneration error:', err);
         return res.status(500).render('login', { error: 'Session error. Please try again.', isRegister: false });
       }
-      if (user.email === ADMIN_EMAIL) {
-        return res.redirect('/admin');
-      }
-      res.redirect('/gallery');
+      
+      // Set user in session
+      req.session.user = { id: user.id, email: user.email, name: user.name };
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          return res.status(500).render('login', { error: 'Session error. Please try again.', isRegister: false });
+        }
+        if (user.email === ADMIN_EMAIL) {
+          return res.redirect('/admin');
+        }
+        res.redirect('/gallery');
+      });
     });
   });
 });
@@ -631,8 +655,22 @@ app.post('/register', (req, res) => {
       [email.trim(), password, name ? name.trim() : null], function(err) {
       if (err) return res.status(500).render('login', { error: 'Error creating account', isRegister: true });
       
-      req.session.user = { id: this.lastID, email: email.trim(), name: name ? name.trim() : null };
-      res.redirect('/gallery');
+      // Regenerate session ID for security on registration
+      req.session.regenerate((regenerateErr) => {
+        if (regenerateErr) {
+          console.error('Session regeneration error:', regenerateErr);
+          return res.status(500).render('login', { error: 'Session error. Please try again.', isRegister: true });
+        }
+        
+        req.session.user = { id: this.lastID, email: email.trim(), name: name ? name.trim() : null };
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            console.error('Session save error:', saveErr);
+            return res.status(500).render('login', { error: 'Session error. Please try again.', isRegister: true });
+          }
+          res.redirect('/gallery');
+        });
+      });
     });
   });
 });
@@ -673,7 +711,14 @@ app.post('/auth/google', (req, res) => {
 });
 
 app.get('/logout', (req, res) => {
-  req.session.destroy(() => res.redirect('/login'));
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Logout error:', err);
+    }
+    // Clear cookie explicitly
+    res.clearCookie('artshop.sid');
+    res.redirect('/login');
+  });
 });
 
 // Help & Support page
