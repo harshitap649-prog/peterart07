@@ -174,13 +174,15 @@ app.use((req, res, next) => {
 });
 app.use(session({ 
   secret: SESSION_SECRET, 
-  resave: true, // Changed to true for serverless
-  saveUninitialized: true, // Changed to true for serverless
+  resave: true, // Changed to true for serverless - save even if not modified
+  saveUninitialized: true, // Changed to true for serverless - save new sessions
+  rolling: true, // Reset expiration on every request
   cookie: { 
     maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     httpOnly: true,
     secure: false, // Set to false - Vercel handles HTTPS, but secure cookies can cause issues
-    sameSite: 'lax'
+    sameSite: 'lax',
+    path: '/' // Ensure cookie is available for all paths
   },
   // For Vercel/serverless, we need to ensure sessions work
   name: 'artshop.sid' // Custom session name
@@ -342,6 +344,22 @@ app.use((req, res, next) => {
     req.session.touch(); // Update session expiration
   }
   
+  next();
+});
+
+// Middleware to ensure session is saved after response (critical for serverless)
+app.use((req, res, next) => {
+  // Override res.end to save session before sending response
+  const originalEnd = res.end.bind(res);
+  res.end = function(chunk, encoding) {
+    if (req.session && req.session.user) {
+      req.session.save(() => {
+        originalEnd(chunk, encoding);
+      });
+    } else {
+      originalEnd(chunk, encoding);
+    }
+  };
   next();
 });
 
@@ -963,22 +981,19 @@ app.get('/buy/:id/checkout', (req, res) => {
 });
 
 function requireAdmin(req, res, next) {
-  console.log('=== requireAdmin CHECK ===');
-  console.log('Session user:', req.session.user);
-  console.log('ADMIN_EMAIL constant:', ADMIN_EMAIL);
-  console.log('Email match:', req.session.user?.email === ADMIN_EMAIL);
-  console.log('Email comparison:', { 
-    sessionEmail: req.session.user?.email, 
-    adminEmail: ADMIN_EMAIL,
-    match: req.session.user?.email === ADMIN_EMAIL 
-  });
-  
-  if (req.session.user && req.session.user.email === ADMIN_EMAIL) {
-    console.log('✅ Admin access granted');
-    return next();
+  // Check if session exists and user is admin
+  if (req.session && req.session.user && req.session.user.email === ADMIN_EMAIL) {
+    // Ensure session is saved before proceeding
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error in requireAdmin:', err);
+      }
+      return next();
+    });
+  } else {
+    console.log('❌ Admin access denied - no valid session');
+    return res.redirect('/login');
   }
-  console.log('❌ Admin access denied - redirecting to login');
-  return res.redirect('/login');
 }
 
 // Admin dashboard - list artworks and orders
